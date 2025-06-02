@@ -1,100 +1,85 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Исходные параметры
-N = 4                  # Число отсчетов
-sigma2 = 1.0            # Дисперсия
-# b = 1e-1                # Параметр, лежащий в [1e-2, 1e-4]
-b = 0.1
-_lambda = 1.0           # lambda: отношение X_fch к X_fh
+# Наборы параметров для четырёх прогонов
+params = [
+    (4, 0.1, 1.0),
+    (16, 0.05, 1.0),
+    (100, 0.01, 1.0),
+    (1000, 0.005, 1.0)
+]
 
+for run_num, (N, b, sigma2) in enumerate(params, start=1):
+    _lambda = 1.0
 
-# Вычисление параметра x_c
-x_c = 2 * np.sqrt(2.31 * np.log10(1 / b))
+    # Вычисление параметра x_c
+    x_c = 2 * np.sqrt(2.31 * np.log10(1 / b))
 
-# Массивы коэффициентов
-X_fh = np.zeros(N//2 + 1)
-X_fch = np.zeros(N//2 + 1)
+    # Массивы коэффициентов
+    X_fh = np.zeros(N // 2 + 1)
+    X_fch = np.zeros(N // 2 + 1)
 
+    # Вычисление X_fh
+    # X_fh[0] = np.sqrt(sigma2 * x_c / np.sqrt(np.pi * N))
+    # X_fh[N // 2] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(-x_c / 4))
+    # for k in range(1, N // 2):
+    #     X_fh[k] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(- (x_c**2 * k**2) / N**2))
+    X_fh[0] = (sigma2 * x_c / np.sqrt(np.pi * N))
+    X_fh[N // 2] = ((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(-x_c / 4))
+    for k in range(1, N // 2):
+        X_fh[k] = ((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(- (x_c**2 * k**2) / N**2))
+    # X_fh *= (1 / np.sqrt(2))
 
-# Вычисление X_fh(0)
-X_fh[0] = np.sqrt(sigma2 * x_c / np.sqrt(np.pi * N))
+    X_fch = _lambda * X_fh
 
-# Вычисление X_fh(N/2)
-X_fh[N//2] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(-x_c / 4))
+    # Генерация x(i)
+    def x_i(i):
+        result = X_fch[0]
+        for k in range(1, N // 2):
+            result += 2 * (X_fch[k] * np.cos(2 * np.pi * k * i / N) + X_fh[k] * np.sin(2 * np.pi * k * i / N))
+        result += X_fch[N // 2] * np.cos(np.pi * i)
+        return result
 
-# Вычисление X_fh(k) для 1 <= k < N/2
-for k in range(1, N//2):
-    X_fh[k] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(- (x_c**2 * k**2) / N**2))
+    x_values = np.array([x_i(i) for i in range(N)])
 
+    # Теоретическая АКФ
+    m_vals = np.arange(N)
+    x_c_theory = 2 * np.sqrt(2.3 * np.log10(1 / b))
+    Rt = sigma2 * np.exp(- (np.pi**2 * m_vals**2) / x_c_theory**2)
 
-# X_fch = lambda * X_fh
-X_fch = _lambda * X_fh
+    # Оценка АКФ
+    Re = np.zeros_like(m_vals, dtype=float)
+    for i, m in enumerate(m_vals):
+        acc = 0
+        for j in range(N - m):
+            acc += x_values[j] * x_values[j + m]
+        Re[i] = acc / (N - m)
 
+    # Ошибка
+    error = np.abs(Rt - Re)
+    avg_abs_error = np.mean(error)
 
-# Вычисление x(i) по формуле
-def x_i(i):
-    result = X_fch[0]
-    for k in range(1, N//2):
-        cos_term = X_fch[k] * np.cos(2 * np.pi * k * i / N)
-        sin_term = X_fh[k] * np.sin(2 * np.pi * k * i / N)
-        result += 2 * (cos_term + sin_term)
-    result += X_fch[N//2] * np.cos(np.pi * i)
-    return result
+    # Построение двух графиков рядом
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f'Прогон #{run_num}: N={N}, b={b}, sigma2={sigma2} | Средняя ошибка: {avg_abs_error:.4e}')
 
-# Генерация всех x(i)
-x_values = np.array([x_i(i) for i in range(N)])
+    # График x(i)
+    ax1.plot(range(N), x_values, marker='o', linestyle='-', color='blue', label='x(i)')
+    ax1.set_title('Функция x(i)')
+    ax1.set_xlabel('i')
+    ax1.set_ylabel('x(i)')
+    ax1.grid(True)
+    ax1.legend()
 
+    # График Rt(m), Re(m), ошибка
+    ax2.plot(m_vals, Rt, label=r'$R_t(m)$ - теор. АКФ', color='green', marker='o')
+    ax2.plot(m_vals, Re, label=r'$R_э(m)$ - оценка', linestyle='--', marker='o', color='blue')
+    ax2.plot(m_vals, error, label=r'ошибка', linestyle='--', marker='o', color='red')
+    ax2.set_title('Сравнение Rt(m) и Re(m)')
+    ax2.set_xlabel('m')
+    ax2.set_ylabel('R(m)')
+    ax2.grid(True)
+    ax2.legend()
 
-
-# Построение графика
-plt.figure(figsize=(10, 4))
-plt.plot(range(N), x_values, marker='o', linestyle='-', color='blue', label='x(i)')
-
-plt.title('Функция x(i), восстановленная по спектру')
-plt.xlabel('i')
-plt.ylabel('x(i)')
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-
-
-
-# Параметры
-m_vals = np.arange(0, N)
-
-# Расчёт x_c и теоретической АКФ Rt(m)
-xc = 2 * np.sqrt(2.3 * np.log10(1 / b))
-Rt = sigma2 * np.exp(- (np.pi**2 * m_vals**2) / xc**2)
-
-# # Вычисление R_э(m) по формуле (оценка АКФ)
-# Re = np.array([
-#     tmp = np.sum(x_values[:N - m] * x_values[m:]) / (N - m)
-#     for m in m_vals
-# ])
-
-Re = np.zeros(len(m_vals))
-for m in m_vals:
-    acc = 0
-    for i in range(N - m):
-        acc += x_values[i] * x_values[i + m]
-    Re[m] = acc / (N - m)
-
-
-# Построение графика
-plt.figure(figsize=(10, 5))
-plt.plot(m_vals, Rt, label=r'$R_t(m)$ — теоретическая АКФ', color='green', marker='o')
-plt.plot(m_vals, Re, label=r'$R_э(m)$ — оценка АКФ', linestyle='--', marker='o', color='blue')
-plt.plot(m_vals, abs(Rt - Re), label=r'ошибка', linestyle='--', marker='o', color='green')
-
-avg_abs_error = np.mean(np.abs(Rt - Re))
-
-plt.title('Сравнение Rt(m) и Re(m)')
-plt.xlabel('m')
-plt.ylabel('R(m)')
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plt.show()
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Оставить место для заголовка
+    plt.show()
