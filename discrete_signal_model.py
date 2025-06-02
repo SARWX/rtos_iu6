@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 # Исходные параметры
 N = 4                  # Число отсчетов
 sigma2 = 1.0            # Дисперсия
-b = 1e-2                # Параметр, лежащий в [1e-2, 1e-4]
+# b = 1e-1                # Параметр, лежащий в [1e-2, 1e-4]
+b = 0.1
 _lambda = 1.0           # lambda: отношение X_fch к X_fh
 
 
@@ -17,14 +18,14 @@ X_fch = np.zeros(N//2 + 1)
 
 
 # Вычисление X_fh(0)
-X_fh[0] = sigma2 * x_c / np.sqrt(np.pi * N)
+X_fh[0] = np.sqrt(sigma2 * x_c / np.sqrt(np.pi * N))
 
 # Вычисление X_fh(N/2)
-X_fh[N//2] = (sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(-x_c / 4)
+X_fh[N//2] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(-x_c / 4))
 
 # Вычисление X_fh(k) для 1 <= k < N/2
 for k in range(1, N//2):
-    X_fh[k] = (sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(- (x_c**2 * k**2) / N**2)
+    X_fh[k] = np.sqrt((sigma2 * x_c / np.sqrt(np.pi * N)) * np.exp(- (x_c**2 * k**2) / N**2))
 
 
 # X_fch = lambda * X_fh
@@ -62,31 +63,35 @@ plt.show()
 
 
 # Параметры
-# N = 128  # Длина сигнала
-b = 1e-3
-sigma2 = 1.0
-m_vals = np.arange(0, N//2 + 1)  # Только положительные m, как в R_э(m)
+m_vals = np.arange(0, N)
 
 # Расчёт x_c и теоретической АКФ Rt(m)
 xc = 2 * np.sqrt(2.3 * np.log10(1 / b))
 Rt = sigma2 * np.exp(- (np.pi**2 * m_vals**2) / xc**2)
 
-# Синтетический сигнал x(i)
-np.random.seed(0)
-x = np.random.normal(0, np.sqrt(sigma2), N)
+# # Вычисление R_э(m) по формуле (оценка АКФ)
+# Re = np.array([
+#     tmp = np.sum(x_values[:N - m] * x_values[m:]) / (N - m)
+#     for m in m_vals
+# ])
 
-# Вычисление R_э(m) по формуле (оценка АКФ)
-Re = np.array([
-    np.sum(x[:N - m] * x[m:]) / (N - m)
-    for m in m_vals
-])
+Re = np.zeros(len(m_vals))
+for m in m_vals:
+    acc = 0
+    for i in range(N - m):
+        acc += x_values[i] * x_values[i + m]
+    Re[m] = acc / (N - m)
+
 
 # Построение графика
 plt.figure(figsize=(10, 5))
-plt.plot(m_vals, Rt, label=r'$R_t(m)$ — теоретическая АКФ', color='green')
+plt.plot(m_vals, Rt, label=r'$R_t(m)$ — теоретическая АКФ', color='green', marker='o')
 plt.plot(m_vals, Re, label=r'$R_э(m)$ — оценка АКФ', linestyle='--', marker='o', color='blue')
+plt.plot(m_vals, abs(Rt - Re), label=r'ошибка', linestyle='--', marker='o', color='green')
 
-plt.title('Сравнение Rₜ(m) и Rₑ(m)')
+avg_abs_error = np.mean(np.abs(Rt - Re))
+
+plt.title('Сравнение Rt(m) и Re(m)')
 plt.xlabel('m')
 plt.ylabel('R(m)')
 plt.grid(True)
