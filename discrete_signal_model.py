@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Исходные параметры
 N = 4                  # Число отсчетов
@@ -42,3 +43,53 @@ def x_i(i):
 
 # Генерация всех x(i)
 x_values = np.array([x_i(i) for i in range(N)])
+
+
+
+# Построение графика
+plt.figure(figsize=(10, 4))
+plt.plot(range(N), x_values, marker='o', linestyle='-', color='blue', label='x(i)')
+
+plt.title('Функция x(i), восстановленная по спектру')
+plt.xlabel('i')
+plt.ylabel('x(i)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+
+# Параметры
+# N = 128  # Длина сигнала
+b = 1e-3
+sigma2 = 1.0
+m_vals = np.arange(0, N//2 + 1)  # Только положительные m, как в R_э(m)
+
+# Расчёт x_c и теоретической АКФ Rt(m)
+xc = 2 * np.sqrt(2.3 * np.log10(1 / b))
+Rt = sigma2 * np.exp(- (np.pi**2 * m_vals**2) / xc**2)
+
+# Синтетический сигнал x(i)
+np.random.seed(0)
+x = np.random.normal(0, np.sqrt(sigma2), N)
+
+# Вычисление R_э(m) по формуле (оценка АКФ)
+Re = np.array([
+    np.sum(x[:N - m] * x[m:]) / (N - m)
+    for m in m_vals
+])
+
+# Построение графика
+plt.figure(figsize=(10, 5))
+plt.plot(m_vals, Rt, label=r'$R_t(m)$ — теоретическая АКФ', color='green')
+plt.plot(m_vals, Re, label=r'$R_э(m)$ — оценка АКФ', linestyle='--', marker='o', color='blue')
+
+plt.title('Сравнение Rₜ(m) и Rₑ(m)')
+plt.xlabel('m')
+plt.ylabel('R(m)')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
